@@ -1,13 +1,14 @@
 use std::{
-  io::{self, Error},
+  io::{self},
   path::{Path, PathBuf},
   sync::Mutex,
 };
 
 use egui_file::{
-  vfs::{Vfs, VfsFile},
+  vfs::{PromiseResult, ReadDirResult, Vfs, VfsFile},
   Filter,
 };
+use poll_promise::Promise;
 
 pub struct FakeFs {
   nodes: Mutex<Vec<Node>>,
@@ -50,8 +51,8 @@ impl Vfs for FakeFs {
     path: &Path,
     _show_system_files: bool,
     _show_files_filter: &Filter<PathBuf>,
-    _show_hidden: bool,
-  ) -> Result<Vec<Box<dyn VfsFile>>, Error> {
+    #[cfg(unix)] _show_hidden: bool,
+  ) -> Box<dyn PromiseResult> {
     let mut ret: Vec<Box<dyn VfsFile>> = vec![];
     for f in self.nodes.lock().unwrap().iter() {
       if let Some(parent) = f.path.parent() {
@@ -60,7 +61,9 @@ impl Vfs for FakeFs {
         }
       }
     }
-    Ok(ret)
+    Box::new(ReadDirResult {
+      promise: Some(Promise::from_ready(Ok(ret))),
+    })
   }
 }
 

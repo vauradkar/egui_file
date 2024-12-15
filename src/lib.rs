@@ -16,7 +16,7 @@ use fs::Fs;
 mod fs;
 pub mod vfs;
 pub use vfs::Vfs;
-use vfs::VfsFile;
+use vfs::{PromiseResult, VfsFile};
 
 /// Function that returns `true` if the path is accepted.
 pub type Filter<T> = Box<dyn Fn(&<T as Deref>::Target) -> bool + Send + Sync + 'static>;
@@ -91,6 +91,7 @@ pub struct FileDialog {
 
   /// Files in directory.
   files: Result<Vec<Box<dyn VfsFile>>, Error>,
+  refresh_promise: Option<Box<dyn PromiseResult>>,
 
   /// Current dialog state.
   state: State,
@@ -237,6 +238,7 @@ impl FileDialog {
       keep_on_top: false,
       show_system_files: false,
       fs: Box::new(Fs {}),
+      refresh_promise: None,
     }
   }
 
@@ -487,12 +489,13 @@ impl FileDialog {
   }
 
   fn refresh(&mut self) {
-    self.files = self.fs.read_folder(
+    self.refresh_promise = Some(self.fs.read_folder(
       &self.path,
       self.show_system_files,
       &self.show_files_filter,
+      #[cfg(unix)]
       self.show_hidden,
-    );
+    ));
     self.path_edit = String::from(self.path.to_str().unwrap_or_default());
     self.select(None);
     self.selected_file = None;
@@ -619,6 +622,15 @@ impl FileDialog {
     window.show(ctx, |ui| {
       if self.keep_on_top {
         ui.ctx().move_to_top(ui.layer_id());
+      }
+      if let Some(promise) = &mut self.refresh_promise {
+        if !promise.is_ready() {
+          ui.spinner();
+          return;
+        } else {
+          self.files = promise.take();
+          self.refresh_promise = None;
+        }
       }
       self.ui_in_window(ui)
     });

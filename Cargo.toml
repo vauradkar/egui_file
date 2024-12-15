@@ -14,3 +14,12 @@ version = "0.29"
 
 [dependencies.dyn-clone]
 version = "1.0.17"
+
+[dev-dependencies.eframe]
+version = "*"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+poll-promise = { version = "0.3.0", features = ["tokio"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+poll-promise = { version = "0.3.0", features = ["web"] }

@@ -1,11 +1,16 @@
 use std::{
   cmp::Ordering,
   fs::{self, FileType},
-  io::{self, Error},
+  io::{self},
   path::{Path, PathBuf},
 };
 
-use crate::{vfs::VfsFile, Filter, Vfs};
+use poll_promise::Promise;
+
+use crate::{
+  vfs::{PromiseResult, ReadDirResult, VfsFile},
+  Filter, Vfs,
+};
 
 #[derive(Default)]
 pub struct Fs {}
@@ -24,57 +29,61 @@ impl Vfs for Fs {
     path: &Path,
     show_system_files: bool,
     show_files_filter: &Filter<PathBuf>,
-    show_hidden: bool,
-  ) -> Result<Vec<Box<dyn VfsFile>>, Error> {
-    std::fs::read_dir(path).map(|entries| {
-      let mut file_infos: Vec<Box<dyn VfsFile>> = entries
-        .filter_map(|result| result.ok())
-        .filter_map(|entry| {
-          let info: Box<FileInfo> = Box::new(FileInfo::new(entry.path()));
-          if !info.is_dir() {
-            if !show_system_files && !info.path.is_file() {
-              // Do not show system files.
-              return None;
+    #[cfg(unix)] show_hidden: bool,
+  ) -> Box<dyn PromiseResult> {
+    Box::new(ReadDirResult {
+      promise: Some(Promise::from_ready(std::fs::read_dir(path).map(
+        |entries| {
+          let mut file_infos: Vec<Box<dyn VfsFile>> = entries
+            .filter_map(|result| result.ok())
+            .filter_map(|entry| {
+              let info: Box<FileInfo> = Box::new(FileInfo::new(entry.path()));
+              if !info.is_dir() {
+                if !show_system_files && !info.path.is_file() {
+                  // Do not show system files.
+                  return None;
+                }
+
+                // Filter.
+                if !(show_files_filter)(&info.path) {
+                  return None;
+                }
+              }
+
+              #[cfg(unix)]
+              if !show_hidden && info.get_file_name().starts_with('.') {
+                return None;
+              }
+
+              let info: Box<dyn VfsFile> = info;
+              Some(info)
+            })
+            .collect();
+
+          // Sort with folders before files.
+          file_infos.sort_by(|a, b| match b.is_dir().cmp(&a.is_dir()) {
+            Ordering::Less => Ordering::Less,
+            Ordering::Equal => a.path().file_name().cmp(&b.path().file_name()),
+            Ordering::Greater => Ordering::Greater,
+          });
+
+          #[cfg(windows)]
+          let file_infos = match self.show_drives {
+            true => {
+              let drives = get_drives();
+              let mut infos = Vec::with_capacity(drives.len() + file_infos.len());
+              for drive in drives {
+                infos.push(FileInfo::new(drive));
+              }
+              infos.append(&mut file_infos);
+              infos
             }
+            false => file_infos,
+          };
 
-            // Filter.
-            if !(show_files_filter)(&info.path) {
-              return None;
-            }
-          }
-
-          #[cfg(unix)]
-          if !show_hidden && info.get_file_name().starts_with('.') {
-            return None;
-          }
-
-          let info: Box<dyn VfsFile> = info;
-          Some(info)
-        })
-        .collect();
-
-      // Sort with folders before files.
-      file_infos.sort_by(|a, b| match b.is_dir().cmp(&a.is_dir()) {
-        Ordering::Less => Ordering::Less,
-        Ordering::Equal => a.path().file_name().cmp(&b.path().file_name()),
-        Ordering::Greater => Ordering::Greater,
-      });
-
-      #[cfg(windows)]
-      let file_infos = match self.show_drives {
-        true => {
-          let drives = get_drives();
-          let mut infos = Vec::with_capacity(drives.len() + file_infos.len());
-          for drive in drives {
-            infos.push(FileInfo::new(drive));
-          }
-          infos.append(&mut file_infos);
-          infos
-        }
-        false => file_infos,
-      };
-
-      file_infos
+          file_infos
+        },
+      ))),
     })
   }
 }
