@@ -609,7 +609,13 @@ impl FileDialog {
   fn ui(&mut self, ctx: &Context, is_open: &mut bool) {
     if self.modal {
       let window = Modal::new(Id::new(&self.title)).frame(Frame::window(&ctx.style()));
-      window.show(ctx, |ui| self.show_content(ui));
+      let area = window.area.default_size(self.default_size);
+      let window = window.area(area);
+      window.show(ctx, |ui| {
+        ui.set_height(self.default_size.y);
+        ui.set_width(self.default_size.x);
+        self.show_content(ui)
+      });
     } else {
       let mut window = Window::new(RichText::new(&self.title).strong())
         .open(is_open)
