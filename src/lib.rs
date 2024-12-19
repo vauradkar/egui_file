@@ -7,8 +7,9 @@ use std::{
 };
 
 use dyn_clone::clone_box;
+use egui::Frame;
 use egui::{
-  Align2, Context, Id, Key, Layout, Pos2, RichText, ScrollArea, TextEdit, Ui, Vec2, Window,
+  Align2, Context, Id, Key, Layout, Modal, Pos2, RichText, ScrollArea, TextEdit, Ui, Vec2, Window,
 };
 use fs::FileInfo;
 use fs::Fs;
@@ -123,6 +124,8 @@ pub struct FileDialog {
   show_hidden: bool,
 
   fs: Box<dyn Vfs + 'static>,
+
+  modal: bool,
 }
 
 impl Debug for FileDialog {
@@ -239,6 +242,7 @@ impl FileDialog {
       show_system_files: false,
       fs: Box::new(Fs {}),
       refresh_promise: None,
+      modal: false,
     }
   }
 
@@ -404,6 +408,12 @@ impl FileDialog {
 
   pub fn with_fs(mut self, fs: Box<dyn Vfs>) -> Self {
     self.fs = fs;
+    self
+  }
+
+  /// Creates a `egui::Modal`` instead of `egui::Window``
+  pub fn make_modal(mut self, modal: bool) -> Self {
+    self.modal = modal;
     self
   }
 
@@ -597,43 +607,53 @@ impl FileDialog {
   }
 
   fn ui(&mut self, ctx: &Context, is_open: &mut bool) {
-    let mut window = Window::new(RichText::new(&self.title).strong())
-      .open(is_open)
-      .default_size(self.default_size)
-      .resizable(self.resizable)
-      .collapsible(false);
+    if self.modal {
+      let window = Modal::new(Id::new(&self.title)).frame(Frame::window(&ctx.style()));
+      window.show(ctx, |ui| self.show_content(ui));
+    } else {
+      let mut window = Window::new(RichText::new(&self.title).strong())
+        .open(is_open)
+        .default_size(self.default_size)
+        .resizable(self.resizable)
+        .collapsible(false);
 
-    if let Some(id) = self.id {
-      window = window.id(id);
-    }
-
-    if let Some((align, offset)) = self.anchor {
-      window = window.anchor(align, offset);
-    }
-
-    if let Some(current_pos) = self.current_pos {
-      window = window.current_pos(current_pos);
-    }
-
-    if let Some(default_pos) = self.default_pos {
-      window = window.default_pos(default_pos);
-    }
-
-    window.show(ctx, |ui| {
-      if self.keep_on_top {
-        ui.ctx().move_to_top(ui.layer_id());
+      if let Some(id) = self.id {
+        window = window.id(id);
       }
-      if let Some(promise) = &mut self.refresh_promise {
-        if !promise.is_ready() {
-          ui.spinner();
-          return;
-        } else {
-          self.files = promise.take();
-          self.refresh_promise = None;
-        }
+
+      if let Some((align, offset)) = self.anchor {
+        window = window.anchor(align, offset);
       }
-      self.ui_in_window(ui)
-    });
+
+      if let Some(current_pos) = self.current_pos {
+        window = window.current_pos(current_pos);
+      }
+
+      if let Some(default_pos) = self.default_pos {
+        window = window.default_pos(default_pos);
+      }
+      window.show(ctx, |ui| self.show_content(ui));
+    }
+  }
+
+  fn show_content(&mut self, ui: &mut Ui) {
+    if self.modal {
+      ui.heading(&self.title);
+      ui.separator();
+    }
+    if self.keep_on_top {
+      ui.ctx().move_to_top(ui.layer_id());
+    }
+    if let Some(promise) = &mut self.refresh_promise {
+      if !promise.is_ready() {
+        ui.spinner();
+        return;
+      } else {
+        self.files = promise.take();
+        self.refresh_promise = None;
+      }
+    }
+    self.ui_in_window(ui)
   }
 
   fn ui_in_window(&mut self, ui: &mut Ui) {

@@ -10,9 +10,10 @@ pub trait PromiseResult {
   fn is_ready(&self) -> bool;
   fn take(&mut self) -> Result<Vec<Box<dyn VfsFile>>, Error>;
 }
+pub type ReadDirReturnType = Result<Vec<Box<dyn VfsFile>>, Error>;
 
 pub struct ReadDirResult {
-  pub promise: Option<Promise<Result<Vec<Box<dyn VfsFile>>, Error>>>,
+  pub promise: Option<Promise<ReadDirReturnType>>,
 }
 
 impl PromiseResult for ReadDirResult {
