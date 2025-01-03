@@ -52,6 +52,7 @@ impl Vfs for FakeFs {
     _show_system_files: bool,
     _show_files_filter: &Filter<PathBuf>,
     #[cfg(unix)] _show_hidden: bool,
+    #[cfg(windows)] _show_drives: bool,
   ) -> Box<dyn PromiseResult> {
     let mut ret: Vec<Box<dyn VfsFile>> = vec![];
     for f in self.nodes.lock().unwrap().iter() {

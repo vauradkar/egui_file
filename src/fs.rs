@@ -30,6 +30,7 @@ impl Vfs for Fs {
     show_system_files: bool,
     show_files_filter: &Filter<PathBuf>,
     #[cfg(unix)] show_hidden: bool,
+    #[cfg(windows)] show_drives: bool,
   ) -> Box<dyn PromiseResult> {
     Box::new(ReadDirResult {
       promise: Some(Promise::from_ready(std::fs::read_dir(path).map(
@@ -68,12 +69,12 @@ impl Vfs for Fs {
           });
 
           #[cfg(windows)]
-          let file_infos = match self.show_drives {
+          let file_infos: Vec<Box<dyn VfsFile>> = match show_drives {
             true => {
               let drives = get_drives();
               let mut infos = Vec::with_capacity(drives.len() + file_infos.len());
               for drive in drives {
-                infos.push(FileInfo::new(drive));
+                infos.push(Box::new(FileInfo::new(drive)) as Box<dyn VfsFile>);
               }
               infos.append(&mut file_infos);
               infos
@@ -129,8 +130,8 @@ impl VfsFile for FileInfo {
 
   fn get_file_name(&self) -> &str {
     #[cfg(windows)]
-    if info.is_dir() && is_drive_root(&info.path) {
-      return info.path.to_str().unwrap_or_default();
+    if self.is_dir() && is_drive_root(&self.path) {
+      return self.path.to_str().unwrap_or_default();
     }
     self
       .path()

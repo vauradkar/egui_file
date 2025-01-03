@@ -45,6 +45,7 @@ pub trait Vfs {
     show_system_files: bool,
     show_files_filter: &Filter<PathBuf>,
     #[cfg(unix)] show_hidden: bool,
+    #[cfg(windows)] show_drives: bool,
   ) -> Box<dyn PromiseResult>;
 }
 
