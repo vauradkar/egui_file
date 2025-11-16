@@ -7,16 +7,16 @@ license = "MIT"
 name = "egui_file"
 repository = "https://github.com/Barugon/egui_file"
 rust-version = "1.76.0"
-version = "0.19.1"
+version = "0.19.7"
 
 [dependencies.egui]
-version = "0.31"
+version = "0.33"
 
 [dependencies.dyn-clone]
 version = "1.0.17"
 
 [dev-dependencies.eframe]
-version = "0.31"
+version = "0.33"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 poll-promise = { version = "0.3.0", features = ["tokio"] }

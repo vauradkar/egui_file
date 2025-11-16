@@ -611,7 +611,7 @@ impl FileDialog {
   fn ui(&mut self, ctx: &Context, is_open: &mut bool) {
     if self.modal {
       let window = Modal::new(Id::new(&self.title)).frame(Frame::window(&ctx.style()));
-      let area = window.area.default_size(self.default_size);
+      let area = window.area.clone().default_size(self.default_size);
       let window = window.area(area);
       window.show(ctx, |ui| {
         ui.set_height(self.default_size.y);
